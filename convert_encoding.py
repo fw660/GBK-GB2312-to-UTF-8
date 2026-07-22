@@ -69,7 +69,7 @@ def detect_encoding(filepath):
         return 'gb2312'
 
 
-def convert_file(filepath, target_encoding='utf-8-sig', backup=True, backup_dir=None, force=False, base_dir=None):
+def convert_file(filepath, target_encoding='utf-8-sig', backup=True, backup_dir=None, force=False, base_dir=None, dry_run=False):
     """转换单个文件编码"""
     try:
         # 检测原始编码
@@ -80,8 +80,22 @@ def convert_file(filepath, target_encoding='utf-8-sig', backup=True, backup_dir=
             return True, "已是目标编码"
 
         # 读取文件内容
-        with open(filepath, 'r', encoding=source_encoding, errors='replace') as f:
-            content = f.read()
+        with open(filepath, 'rb') as f:
+            raw_data = f.read()
+
+        # 保留原始换行符
+        newline = None
+        if b'\r\n' in raw_data:
+            newline = '\r\n'
+        elif b'\r' in raw_data:
+            newline = '\r'
+        else:
+            newline = '\n'
+
+        content = raw_data.decode(source_encoding, errors='replace')
+
+        if dry_run:
+            return True, f"{source_encoding} -> {target_encoding} (dry-run)"
 
         # 备份原文件
         if backup:
@@ -98,19 +112,19 @@ def convert_file(filepath, target_encoding='utf-8-sig', backup=True, backup_dir=
                 # 备份到原文件旁边
                 backup_path = str(filepath) + '.bak'
                 shutil.copy2(filepath, backup_path)
-        
-        # 写入新编码
-        with open(filepath, 'w', encoding=target_encoding, newline='') as f:
+
+        # 写入新编码，保留原始换行符
+        with open(filepath, 'w', encoding=target_encoding, newline=newline) as f:
             f.write(content)
-        
+
         return True, f"{source_encoding} -> {target_encoding}"
-        
+
     except Exception as e:
         return False, str(e)
 
 
-def batch_convert(directory, extensions=('*.c', '*.h', '*.cpp', '*.hpp'), 
-                  target_encoding='utf-8-sig', backup=True, backup_dir=None, recursive=True, force=False):
+def batch_convert(directory, extensions=('*.c', '*.h', '*.cpp', '*.hpp'),
+                  target_encoding='utf-8-sig', backup=True, backup_dir=None, recursive=True, force=False, dry_run=False):
     """批量转换目录下的文件"""
     directory = Path(directory)
     
@@ -141,7 +155,7 @@ def batch_convert(directory, extensions=('*.c', '*.h', '*.cpp', '*.hpp'),
     for i, filepath in enumerate(files, 1):
         print(f"[{i}/{len(files)}] {filepath.name}", end=" ... ")
         
-        success, message = convert_file(filepath, target_encoding, backup, backup_dir, force, base_dir=directory)
+        success, message = convert_file(filepath, target_encoding, backup, backup_dir, force, base_dir=directory, dry_run=dry_run)
         
         if success:
             if "已是目标编码" in message:
@@ -235,7 +249,8 @@ def main():
         backup,
         args.backup_dir,
         recursive,
-        args.force
+        args.force,
+        args.dry_run
     )
     
     # 返回状态码
