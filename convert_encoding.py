@@ -69,25 +69,29 @@ def detect_encoding(filepath):
         return 'gb2312'
 
 
-def convert_file(filepath, target_encoding='utf-8-sig', backup=True, backup_dir=None, force=False):
+def convert_file(filepath, target_encoding='utf-8-sig', backup=True, backup_dir=None, force=False, base_dir=None):
     """转换单个文件编码"""
     try:
         # 检测原始编码
         source_encoding = detect_encoding(filepath)
-        
+
         # 如果已经是目标编码，跳过
         if source_encoding == target_encoding and not force:
             return True, "已是目标编码"
-        
+
         # 读取文件内容
         with open(filepath, 'r', encoding=source_encoding, errors='replace') as f:
             content = f.read()
-        
+
         # 备份原文件
         if backup:
             if backup_dir:
-                # 备份到指定目录
-                backup_path = Path(backup_dir) / Path(filepath).name
+                # 备份到指定目录（保留原始目录结构）
+                if base_dir:
+                    rel_path = Path(filepath).relative_to(base_dir)
+                else:
+                    rel_path = Path(filepath).name
+                backup_path = Path(backup_dir) / rel_path
                 backup_path.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(filepath, backup_path)
             else:
@@ -137,7 +141,7 @@ def batch_convert(directory, extensions=('*.c', '*.h', '*.cpp', '*.hpp'),
     for i, filepath in enumerate(files, 1):
         print(f"[{i}/{len(files)}] {filepath.name}", end=" ... ")
         
-        success, message = convert_file(filepath, target_encoding, backup, backup_dir, force)
+        success, message = convert_file(filepath, target_encoding, backup, backup_dir, force, base_dir=directory)
         
         if success:
             if "已是目标编码" in message:
